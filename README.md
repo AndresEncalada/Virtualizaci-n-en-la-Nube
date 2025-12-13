@@ -14,7 +14,7 @@ Metadatos: Google Cloud SQL (PostgreSQL) para almacenar información de usuarios
 
 Archivos Físicos: Google Filestore (NFS) montado en los servidores de backend para el almacenamiento compartido de archivos binarios.
 
-##Tecnologías Utilizadas
+## Tecnologías Utilizadas
 Nube: Google Cloud Platform (GCP)
 
 Lenguajes: JavaScript (Node.js), SQL
@@ -30,7 +30,7 @@ Gestor de Procesos: PM2
 Endpoints de la API
 La API RESTful expone los siguientes puntos de acceso a través del Balanceador de Carga:
 
-###1. Registrar Usuario
+### 1. Registrar Usuario
 Método: POST
 
 Ruta: /api/register
@@ -46,7 +46,7 @@ JSON
   "email": "correo@ejemplo.com",
   "password": "password_seguro"
 }
-###2. Subir Recurso
+### 2. Subir Recurso
 Método: POST
 
 Ruta: /api/upload
@@ -63,15 +63,15 @@ user_id: ID del usuario propietario.
 
 category_id: ID de la categoría del recurso.
 
-###3. Listar Recursos
+### 3. Listar Recursos
 Método: GET
 
 Ruta: /api/resources
 
 Descripción: Recupera el listado de todos los archivos disponibles en el sistema consultando la base de datos.
 
-##Infraestructura y Despliegue
-###Configuración de Red
+## Infraestructura y Despliegue
+### Configuración de Red
 Se configuró una VPC personalizada (red-universidad) con dos subredes:
 
 Subred Pública: Para el acceso al Frontend y Balanceador de Carga.
@@ -80,37 +80,6 @@ Subred Privada: Para las instancias de Backend y Base de Datos.
 
 Subred Proxy: Reservada para el funcionamiento del Balanceador de Carga Regional.
 
-###Montaje de Almacenamiento
+### Montaje de Almacenamiento
 Las instancias de Backend se conectan al servicio Filestore mediante el protocolo NFS. La configuración de persistencia se encuentra en /etc/fstab para asegurar el montaje automático tras reinicios o escalado automático.
 
-Bash
-
-# Ejemplo de configuración fstab
-[IP_FILESTORE]:/archivos /mnt/storage nfs defaults 0 0
-Escalabilidad
-El sistema utiliza un Instance Group administrado que monitorea el uso de CPU.
-
-Umbral de escalado: 60% de uso de CPU.
-
-Mínimo de instancias: 1
-
-Máximo de instancias: 3
-
-Instalación Local (Desarrollo)
-Para ejecutar el backend en un entorno local conectado a la VPN o red permitida:
-
-Clonar el repositorio.
-
-Instalar dependencias:
-
-Bash
-
-cd backend
-npm install
-Configurar las credenciales de base de datos en server.js.
-
-Iniciar el servidor:
-
-Bash
-
-node server.js
