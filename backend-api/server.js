@@ -25,6 +25,19 @@ pool.connect((err, client, release) => {
   release();
 });
 
+// --- FUNCIÓN PARA LOGS ---
+const registrarLog = async (userId, action) => {
+  try {
+    await pool.query(
+      'INSERT INTO logs (user_id, action) VALUES ($1, $2)',
+      [userId, action]
+    );
+    console.log(`📝 Log guardado en BD: Usuario ${userId} - Acción: ${action}`);
+  } catch (err) {
+    console.error('❌ Error al guardar el log:', err.message);
+  }
+};
+
 // 2. STORAGE
 const storagePath = '/mnt/storage';
 const storage = multer.diskStorage({
@@ -33,13 +46,10 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-// --- ¡NUEVO! SERVIR ARCHIVOS ESTÁTICOS ---
-// Esto permite que el Frontend pueda ver las fotos. 
-// Cuando pidan "http://IP/uploads/foto.jpg", Express buscará en "/mnt/storage"
-app.use('/uploads', express.static(storagePath)); // <--- CAMBIO IMPORTANTE 1
+// --- SERVIR ARCHIVOS ESTÁTICOS ---
+app.use('/mnt/storage', express.static(storagePath));
 
 // RUTA A: Subir Archivo
-// RUTA A: Subir Archivo (VERSIÓN DEBUG EXTREMO)
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   console.log('--- 🟢 INICIO PETICIÓN UPLOAD ---');
   
@@ -65,7 +75,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
      return res.status(400).json({ error: 'IDs inválidos (NaN).' });
   }
 
-  const fileUrl = `/uploads/${req.file.filename}`;
+  const fileUrl = `/mnt/storage/${req.file.filename}`;
   
   const query = `
     INSERT INTO resources (user_id, category_id, title, file_url, content_type)
@@ -81,7 +91,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     console.log('⏳ 6. Enviando consulta a la Base de Datos...');
     const result = await pool.query(query, values);
     
-    console.log('🎉 7. ¡ÉXITO! ID generado:', result.rows[0].id);
+    console.log('🎉 7. ¡ÉXITO! ID generado', result.rows[0].id);
+    await registrarLog(userIdInt, `Subida de archivo: ${req.file.originalname}`);
+    
     res.json({ 
         message: 'Archivo subido correctamente', 
         filename: req.file.filename,
@@ -91,10 +103,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
   } catch (err) {
     console.log('--- 🔴 ERROR CAPTURADO EN CATCH ---');
     console.error('MENSAJE:', err.message);
-    console.error('CÓDIGO SQL:', err.code);
-    console.error('DETALLE:', err.detail);
-    console.error('STACK:', err.stack); // Esto nos dirá la línea exacta
-    
     res.status(500).json({ error: 'Error BD: ' + err.message });
   }
   console.log('--- 🏁 FIN PETICIÓN UPLOAD ---');
@@ -108,16 +116,14 @@ app.get('/api/resources', async (req, res) => {
   } catch (err) { res.status(500).json(err); }
 });
 
-// RUTA REGISTRO (Corregida para aceptar ROLE)
+// RUTA REGISTRO
 app.post('/api/register', async (req, res) => {
-  // Ahora recibimos también 'role' del frontend
-  const { username, email, password, role } = req.body; // <--- CAMBIO IMPORTANTE 3
+  const { username, email, password, role } = req.body;
 
   if (!username || !email || !password) {
     return res.status(400).json({ error: 'Faltan datos' });
   }
 
-  // Asignamos 'client' si no envían rol
   const userRole = role || 'client'; 
 
   const query = `
@@ -129,7 +135,10 @@ app.post('/api/register', async (req, res) => {
 
   try {
     const result = await pool.query(query, values);
-    res.json({ message: 'Usuario creado', user: result.rows[0] });
+    const newUser = result.rows[0];
+    await registrarLog(newUser.id, `Registro de usuario nuevo: ${newUser.role}`);
+    
+    res.json({ message: 'Usuario creado', user: newUser });
   } catch (err) {
     console.error(err);
     if (err.code === '23505') return res.status(400).json({ error: 'Email ya registrado' });
@@ -137,6 +146,7 @@ app.post('/api/register', async (req, res) => {
   }
 });
 
+// Categorías
 app.get('/api/categories', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM categories ORDER BY name ASC');
@@ -144,6 +154,7 @@ app.get('/api/categories', async (req, res) => {
   } catch (err) { res.status(500).json(err); }
 });
 
+// RUTA LOGIN
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
   try {
@@ -152,7 +163,10 @@ app.post('/api/login', async (req, res) => {
       [email, password]
     );
     if (result.rows.length > 0) {
-      res.json({ success: true, user: result.rows[0] });
+      const user = result.rows[0];
+      
+      await registrarLog(user.id, 'Inicio de sesión exitoso');
+      res.json({ success: true, user: user });
     } else {
       res.status(401).json({ success: false, error: 'Credenciales incorrectas' });
     }
